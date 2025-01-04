@@ -4,6 +4,11 @@ import pyperclip
 import time
 import os
 import keyboard  
+import winreg
+import logging
+
+# Set up logging to discard messages
+logging.basicConfig(filename=os.devnull, level=logging.ERROR)
 
 
 load_dotenv()
@@ -11,21 +16,20 @@ load_dotenv()
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-
 def get_gpt4o_mini_answer(prompt):
     try:
-        response = openai.ChatCompletion.create(
+        response = openai.chat.completions.create(
             model="gpt-4o-mini", 
             messages=[
-                {"role": "system", "content": "You are an assistant who gives concise and accurate answers. If presented with multiple-choice questions, simply provide the correct answer. For any type of question, including math, just give the best short answer based on the context, without unnecessary explanation."},
+                {"role": "system", "content": "You are an assistant who gives concise and accurate answers. If presented with multiple-choice questions, simply provide the correct answer. For any type of question, including math, just give the best short answer based on the context, without unnecessary explanation. Just give text, don't style the text. Please do not use any formatting elements like **, ###, or bullet points. Instead, use plain text. Provide the answer in a simple and straightforward manner, without any styled text.If you are working on a math question, provide the steps and the final answer without any explanation. No additional commentary is needed, just the steps and the answer."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=100,  
-            temperature=0.5
+            max_tokens=500,
+            temperature=0.2
         )
-        return response['choices'][0]['message']['content'].strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
-        print(f"Error in getting response: {e}")
+        logging.error(f"Error in getting response: {e}")
         return "Error in generating response."
 
 
@@ -53,17 +57,39 @@ def monitor_clipboard():
             latest_clipboard = last_clipboard  
 
 
+def disable_clipboard_history():
+    try:
+        # Open the registry key for clipboard settings
+        registry_key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Clipboard",
+            0,
+            winreg.KEY_SET_VALUE
+        )
+        # Set the Clipboard history value to 0 (off)
+        winreg.SetValueEx(registry_key, "EnableClipboardHistory", 0, winreg.REG_DWORD, 0)
+        winreg.CloseKey(registry_key)
+        print("Clipboard history disabled successfully.")
+    except FileNotFoundError:
+        logging.error("Registry key not found. Clipboard history might not be supported on this system.")
+    except PermissionError:
+        logging.error("Permission denied. Please run the script as an administrator.")
+    except Exception as e:
+        logging.error(f"An error occurred: {e}")
+
+
 def terminate_script():
-    print("Termination hotkey pressed. Exiting script...")
+    print("Ctrl+B pressed. Disabling clipboard history, clearing clipboard, and exiting script...")
+    disable_clipboard_history()
+    pyperclip.copy("")  # Clear the clipboard
     os._exit(0)
 
 if __name__ == "__main__":
+    disable_clipboard_history()
+    pyperclip.copy("")  # Clear the clipboard at startup
     print("Starting clipboard monitor...")  
-    pyperclip.copy("") 
-
 
     keyboard.add_hotkey('ctrl+x', process_clipboard)
     keyboard.add_hotkey('ctrl+b', terminate_script)
-
 
     monitor_clipboard()
