@@ -5,9 +5,7 @@ import os
 import keyboard
 import winreg
 import logging
-
-# Import the dynamically generated file for the API key
-import apikey
+import apikey  # Import the dynamically created file containing the API key
 
 # Set up the API key from apikey.py
 openai.api_key = apikey.api_key
